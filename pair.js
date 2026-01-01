@@ -105,6 +105,7 @@ router.get('/', async (req, res) => {
 
     let codeSent = false;
     let isConnected = false;
+    let reconnectAttempts = 0;
 
     async function runSession() {
         let sock;
@@ -123,19 +124,22 @@ router.get('/', async (req, res) => {
                 printQRInTerminal: false,
                 logger: pino({ level: "silent" }),
                 browser: Browsers.ubuntu('Chrome'),
-                connectTimeoutMs: 60000,
-                defaultQueryTimeoutMs: 60000,
-                keepAliveIntervalMs: 10000,
+                connectTimeoutMs: 120000,
+                defaultQueryTimeoutMs: 0,
+                keepAliveIntervalMs: 30000,
+                retryRequestDelayMs: 500,
                 markOnlineOnConnect: false,
                 syncFullHistory: false,
+                fireInitQueries: true,
                 generateHighQualityLinkPreview: true,
+                shouldIgnoreJid: () => false,
                 getMessage: async () => undefined
             });
 
             sock.ev.on('creds.update', saveCreds);
 
             sock.ev.on('connection.update', async (update) => {
-                const { connection, lastDisconnect, isNewLogin } = update;
+                const { connection, lastDisconnect, isNewLogin, qr } = update;
 
                 if (connection === 'connecting') {
                     console.log(`🔄 ${num} - Connecting...`);
@@ -143,10 +147,11 @@ router.get('/', async (req, res) => {
 
                 if (connection === 'open') {
                     isConnected = true;
+                    reconnectAttempts = 0;
                     console.log(`✅ ${num} - Connected!`);
                     clearTimeout(sessionTimeout);
                     
-                    await delay(5000);
+                    await delay(8000);
                     
                     const credsFile = `${dirs}/creds.json`;
                     
@@ -163,12 +168,12 @@ router.get('/', async (req, res) => {
 
                             const userJid = jidNormalizedUser(sock.user.id);
                             
-                            await delay(2000);
+                            await delay(3000);
                             const m1 = await sock.sendMessage(userJid, { 
                                 text: `🔐 *Your Session ID*\n\n\`\`\`${sessionCode}\`\`\`\n\n_Keep this secure!_` 
                             });
                             
-                            await delay(1000);
+                            await delay(2000);
                             await sock.sendMessage(userJid, { 
                                 text: MESSAGE,
                                 quoted: m1 
@@ -176,7 +181,7 @@ router.get('/', async (req, res) => {
 
                             console.log(`✅ ${num} - Session sent to WhatsApp!`);
                             
-                            await delay(2000);
+                            await delay(3000);
                             
                             if (sock?.end) {
                                 sock.end(undefined);
@@ -196,9 +201,18 @@ router.get('/', async (req, res) => {
 
                 if (connection === 'close') {
                     const statusCode = lastDisconnect?.error?.output?.statusCode;
-                    const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                     
                     console.log(`❌ ${num} - Closed: ${statusCode}`);
+                    
+                    if (statusCode === DisconnectReason.connectionReplaced || statusCode === DisconnectReason.multideviceMismatch) {
+                        console.log(`🔄 ${num} - Reconnecting...`);
+                        if (reconnectAttempts < 3 && !isConnected) {
+                            reconnectAttempts++;
+                            await delay(2000);
+                            await runSession();
+                            return;
+                        }
+                    }
                     
                     clearTimeout(sessionTimeout);
                     
@@ -210,7 +224,7 @@ router.get('/', async (req, res) => {
             });
 
             if (!sock.authState.creds.registered) {
-                await delay(1500);
+                await delay(2000);
                 
                 try {
                     const pairingCode = await sock.requestPairingCode(num);
@@ -231,7 +245,7 @@ router.get('/', async (req, res) => {
                             await removeFile(dirs);
                             activeSessions.delete(num);
                         }
-                    }, 90000);
+                    }, 180000);
 
                 } catch (err) {
                     console.error(`❌ ${num} - Code error:`, err.message);
@@ -257,7 +271,7 @@ router.get('/', async (req, res) => {
 });
 
 process.on('uncaughtException', err => {
-    const ignore = ['ENOENT', 'ECONNRESET', 'conflict', 'not-authorized'];
+    const ignore = ['ENOENT', 'ECONNRESET', 'conflict', 'not-authorized', 'Stream Errored', 'Connection Closed'];
     if (!ignore.some(x => String(err).includes(x))) {
         console.log('Exception:', err.message);
     }
