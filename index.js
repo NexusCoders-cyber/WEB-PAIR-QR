@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import qrRouter from './qr.js';
 import pairRouter from './pair.js';
+import { testMegaConnection } from './mega.js';
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -33,10 +34,19 @@ app.use('/', async (req, res) => {
     res.sendFile(path.join(__dirname, 'main.html'));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`🚀 Amazing Session Pairing Server`);
     console.log(`📱 GitHub: @NexusCoders-cyber`);
     console.log(`🌐 Server running on http://localhost:${PORT}`);
+    console.log('');
+    
+    const megaWorking = await testMegaConnection();
+    if (megaWorking) {
+        console.log('✅ MEGA is ready to use');
+    } else {
+        console.log('❌ MEGA authentication failed - Check credentials');
+    }
+    console.log('');
 });
 
 export default app;
