@@ -2,15 +2,12 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 import qrRouter from './qr.js';
 import pairRouter from './pair.js';
 
 const app = express();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const PORT = process.env.PORT || 8000;
 
 import('events').then(events => {
@@ -27,15 +24,19 @@ app.use('/code', pairRouter);
 app.use('/pair', async (req, res) => {
     res.sendFile(path.join(__dirname, 'pair.html'));
 });
+
 app.use('/qrpage', (req, res) => {
     res.sendFile(path.join(__dirname, 'qr.html'));
 });
+
 app.use('/', async (req, res) => {
     res.sendFile(path.join(__dirname, 'main.html'));
 });
 
 app.listen(PORT, () => {
-    console.log(`YoutTube: @GlobalTechInfo\nGitHub: @GlobalTechInfo\nServer running on http://localhost:${PORT}`);
+    console.log(`🚀 Amazing Session Pairing Server`);
+    console.log(`📱 GitHub: @NexusCoders-cyber`);
+    console.log(`🌐 Server running on http://localhost:${PORT}`);
 });
 
 export default app;
