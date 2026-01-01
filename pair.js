@@ -91,12 +91,13 @@ router.get('/', async (req, res) => {
     num = phone.getNumber('e164').replace('+', '');
 
     if (activeSessions.has(num)) {
-        return res.status(429).json({ code: 'Session already in progress' });
+        return res.status(429).json({ code: 'Session already in progress. Wait 2 minutes.' });
     }
 
     activeSessions.set(num, sessionId);
 
     let sessionTimeout;
+    let connectionTimeout;
     let codeSent = false;
 
     async function runSession() {
@@ -109,25 +110,34 @@ router.get('/', async (req, res) => {
                 version,
                 auth: { 
                     creds: state.creds, 
-                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })) 
+                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })) 
                 },
                 printQRInTerminal: false,
-                logger: pino({ level: "fatal" }),
-                browser: Browsers.windows('Chrome'),
+                logger: pino({ level: "silent" }),
+                browser: Browsers.ubuntu('Chrome'),
                 markOnlineOnConnect: false,
                 generateHighQualityLinkPreview: true,
                 syncFullHistory: false,
+                defaultQueryTimeoutMs: undefined,
+                keepAliveIntervalMs: 30000,
                 getMessage: async () => ({ conversation: 'Hi' })
             });
 
             sock.ev.on('creds.update', saveCreds);
 
             sock.ev.on('connection.update', async (update) => {
-                const { connection, lastDisconnect } = update;
+                const { connection, lastDisconnect, isNewLogin } = update;
+
+                if (connection === 'connecting') {
+                    console.log(`🔄 Connecting for ${num}...`);
+                }
 
                 if (connection === 'open') {
+                    console.log(`✅ Connected for ${num}`);
                     clearTimeout(sessionTimeout);
-                    await delay(3000);
+                    clearTimeout(connectionTimeout);
+                    
+                    await delay(5000);
                     
                     const credsFile = `${dirs}/creds.json`;
                     
@@ -155,7 +165,7 @@ router.get('/', async (req, res) => {
                             
                             await delay(3000);
                             
-                            if (sock && sock.end) {
+                            if (sock?.end) {
                                 sock.end({ reason: 'Session delivered' });
                             }
                         } catch (err) {
@@ -173,7 +183,10 @@ router.get('/', async (req, res) => {
                     const statusCode = lastDisconnect?.error?.output?.statusCode;
                     const reason = lastDisconnect?.error?.output?.payload?.error;
                     
-                    console.log(`Connection closed: ${statusCode} - ${reason || 'unknown'}`);
+                    console.log(`❌ Connection closed for ${num}: ${statusCode} - ${reason || 'unknown'}`);
+                    
+                    clearTimeout(sessionTimeout);
+                    clearTimeout(connectionTimeout);
                     
                     setTimeout(async () => {
                         await removeFile(dirs);
@@ -182,14 +195,17 @@ router.get('/', async (req, res) => {
                     
                     if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
                         console.log('Logged out or unauthorized');
-                    } else if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
-                        console.log('Restart required');
+                    } else if (statusCode === DisconnectReason.restartRequired) {
+                        console.log('Restart required, but not restarting to avoid loops');
+                    } else if (statusCode === 428) {
+                        console.log('Connection closed before QR/code scan');
                     }
                 }
             });
 
+            await delay(1000);
+
             if (!sock.authState.creds.registered) {
-                await delay(2000);
                 try {
                     const pairingCode = await sock.requestPairingCode(num);
                     let code = pairingCode?.match(/.{1,4}/g)?.join('-') || pairingCode;
@@ -197,12 +213,13 @@ router.get('/', async (req, res) => {
                     if (!codeSent && !res.headersSent) {
                         codeSent = true;
                         res.json({ code });
-                        console.log(`📱 Pairing code sent for ${num}: ${code}`);
+                        console.log(`📱 Pairing code generated for ${num}: ${code}`);
+                        console.log(`⏳ Code valid for 60 seconds - Enter in WhatsApp NOW`);
                     }
                 } catch (err) {
                     console.error('Pairing code error:', err);
                     if (!res.headersSent) {
-                        res.status(503).json({ code: 'Failed to generate pairing code' });
+                        res.status(503).json({ code: 'Failed to generate pairing code. Try again.' });
                     }
                     await removeFile(dirs);
                     activeSessions.delete(num);
@@ -210,10 +227,17 @@ router.get('/', async (req, res) => {
                 }
             }
 
+            connectionTimeout = setTimeout(() => {
+                console.log(`⏱️ Connection timeout for ${num} - Code not used`);
+                if (sock?.end) {
+                    sock.end({ reason: 'Connection timeout' });
+                }
+            }, 60000);
+
             sessionTimeout = setTimeout(async () => {
                 console.log(`⏱️ Session timeout for ${num}`);
-                if (sock && sock.end) {
-                    sock.end({ reason: 'Timeout' });
+                if (sock?.end) {
+                    sock.end({ reason: 'Session timeout' });
                 }
                 await removeFile(dirs);
                 activeSessions.delete(num);
@@ -224,7 +248,7 @@ router.get('/', async (req, res) => {
             await removeFile(dirs);
             activeSessions.delete(num);
             if (!res.headersSent) {
-                res.status(503).json({ code: 'Service temporarily unavailable' });
+                res.status(503).json({ code: 'Service error. Please try again.' });
             }
         }
     }
@@ -237,12 +261,16 @@ process.on('uncaughtException', err => {
     const ignore = [
         "conflict", "not-authorized", "Socket connection timeout",
         "rate-overlimit", "Connection Closed", "Timed Out",
-        "Value not found", "Stream Errored", "ENOENT"
+        "Value not found", "Stream Errored", "ENOENT", "ECONNRESET"
     ];
     
     if (!ignore.some(x => e.includes(x))) {
         console.log('Exception:', err.message);
     }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.log('Unhandled Rejection:', reason);
 });
 
 export default router;
