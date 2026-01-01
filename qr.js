@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs-extra';
 import pino from 'pino';
 import QRCode from 'qrcode';
-import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, Browsers, jidNormalizedUser, fetchLatestBaileysVersion, delay } from '@whiskeysockets/baileys';
+import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, Browsers, jidNormalizedUser, fetchLatestBaileysVersion, delay, DisconnectReason } from '@whiskeysockets/baileys';
 import { upload } from './mega.js';
 
 const router = express.Router();
@@ -51,13 +51,15 @@ router.get('/', async (req, res) => {
         await fs.ensureDir(dirs);
     } catch (err) {
         console.error('Directory error:', err);
-        return res.status(500).send({ code: 'Failed to initialize session' });
+        return res.status(500).json({ code: 'Failed to initialize session' });
     }
+
+    let responseSent = false;
+    let qrGenerated = false;
+    let sessionTimeout;
 
     async function initiateSession() {
         const { state, saveCreds } = await useMultiFileAuthState(dirs);
-        let responseSent = false;
-        let qrGenerated = false;
 
         try {
             const { version } = await fetchLatestBaileysVersion();
@@ -89,7 +91,7 @@ router.get('/', async (req, res) => {
                     
                     if (!responseSent) {
                         responseSent = true;
-                        res.send({
+                        res.json({
                             qr: qrDataURL,
                             message: '🎯 QR Code Ready! Scan Now',
                             instructions: [
@@ -100,11 +102,12 @@ router.get('/', async (req, res) => {
                                 '5. Wait for session delivery'
                             ]
                         });
+                        console.log('✅ QR Code generated');
                     }
                 } catch (err) {
                     console.error('QR generation error:', err);
                     if (!responseSent) {
-                        res.status(500).send({ code: 'QR generation failed' });
+                        res.status(500).json({ code: 'QR generation failed' });
                     }
                 }
             };
@@ -117,7 +120,8 @@ router.get('/', async (req, res) => {
                 }
 
                 if (connection === 'open') {
-                    await delay(2000);
+                    clearTimeout(sessionTimeout);
+                    await delay(3000);
                     
                     try {
                         const credsFile = `${dirs}/creds.json`;
@@ -126,28 +130,31 @@ router.get('/', async (req, res) => {
                             const credsData = await fs.readFile(credsFile);
                             const timestamp = Date.now();
                             const megaUrl = await upload(credsData, `session_${timestamp}.json`);
-                            const sessionId = megaUrl.replace('https://mega.nz/file/', '');
+                            const sessionCode = megaUrl.replace('https://mega.nz/file/', '');
 
-                            console.log('✅ Session uploaded:', sessionId);
+                            console.log('✅ Session uploaded:', sessionCode);
 
                             const userJid = jidNormalizedUser(sock.user.id);
                             
-                            await delay(1000);
+                            await delay(2000);
                             const msg = await sock.sendMessage(userJid, { 
-                                text: `🔐 *Your Session ID*\n\n\`\`\`${sessionId}\`\`\`\n\n_Keep this secure!_` 
+                                text: `🔐 *Your Session ID*\n\n\`\`\`${sessionCode}\`\`\`\n\n_Keep this secure!_` 
                             });
                             
-                            await delay(500);
+                            await delay(1000);
                             await sock.sendMessage(userJid, { 
                                 text: MESSAGE, 
                                 quoted: msg 
                             });
 
                             await delay(3000);
-                            await sock.logout();
+                            
+                            if (sock && sock.end) {
+                                sock.end({ reason: 'Session delivered' });
+                            }
                         }
                         
-                        setTimeout(() => removeFile(dirs), 5000);
+                        setTimeout(() => removeFile(dirs), 10000);
                     } catch (err) {
                         console.error('Session send error:', err);
                         await removeFile(dirs);
@@ -156,29 +163,32 @@ router.get('/', async (req, res) => {
 
                 if (connection === 'close') {
                     const statusCode = lastDisconnect?.error?.output?.statusCode;
+                    const reason = lastDisconnect?.error?.output?.payload?.error;
                     
-                    if (statusCode === 401 || statusCode === 403) {
+                    console.log(`Connection closed: ${statusCode} - ${reason || 'unknown'}`);
+                    
+                    setTimeout(async () => {
                         await removeFile(dirs);
-                    } else {
-                        await delay(2000);
-                        await removeFile(dirs);
-                    }
+                    }, 5000);
                 }
             });
 
             sock.ev.on('creds.update', saveCreds);
 
-            setTimeout(async () => {
+            sessionTimeout = setTimeout(async () => {
                 if (!responseSent) {
-                    res.status(408).send({ code: 'QR timeout - please try again' });
+                    res.status(408).json({ code: 'QR timeout - please try again' });
+                }
+                if (sock && sock.end) {
+                    sock.end({ reason: 'Timeout' });
                 }
                 await removeFile(dirs);
-            }, 60000);
+            }, 120000);
 
         } catch (err) {
             console.error('Session initialization error:', err);
             if (!res.headersSent) {
-                res.status(503).send({ code: 'Service unavailable' });
+                res.status(503).json({ code: 'Service unavailable' });
             }
             await removeFile(dirs);
         }
