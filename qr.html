@@ -3,61 +3,245 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp QR Code</title>
+    <title>QR Code - Amazing Session</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            min-height: 100vh;
             padding: 20px;
-            background-color: #f9f9f9;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 30px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
         h1 {
+            color: #333;
             margin-bottom: 10px;
+            font-size: 2rem;
+            font-weight: 700;
         }
-        img {
+
+        .status {
+            color: #666;
+            font-size: 1rem;
+            margin-bottom: 30px;
+            min-height: 24px;
+        }
+
+        .qr-wrapper {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            display: inline-block;
             margin: 20px 0;
-            border: 2px solid #333;
-            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.5s ease-in;
         }
-        ol {
-            max-width: 400px;
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        #qrImage {
+            max-width: 300px;
+            width: 100%;
+            height: auto;
+            border-radius: 15px;
+            display: none;
+        }
+
+        #qrImage.loaded {
+            display: block;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 40px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .instructions {
             text-align: left;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 25px;
+        }
+
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .instructions ol {
+            padding-left: 20px;
+            color: #555;
+            line-height: 1.8;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        .back-btn {
+            display: inline-block;
+            margin-top: 25px;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .error-box {
+            background: #fee;
+            border: 2px solid #f88;
+            border-radius: 15px;
+            padding: 20px;
+            color: #c33;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            #qrImage {
+                max-width: 250px;
+            }
+
+            .icon {
+                font-size: 50px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>Scan WhatsApp QR Code</h1>
-    <p id="status">Loading QR code...</p>
-    <img id="qrImage" src="" alt="QR Code" />
-    <ol id="instructions"></ol>
+    <div class="container">
+        <div class="icon">📱</div>
+        <h1>Scan QR Code</h1>
+        <p class="status" id="status">
+            <span class="loader"></span>
+        </p>
+        
+        <div class="qr-wrapper">
+            <img id="qrImage" alt="QR Code" />
+        </div>
+
+        <div class="instructions" id="instructions" style="display: none;">
+            <h3>📋 How to Scan:</h3>
+            <ol id="stepsList"></ol>
+        </div>
+
+        <a href="/" class="back-btn">← Back to Home</a>
+    </div>
 
     <script>
         async function loadQRCode() {
+            const statusEl = document.getElementById('status');
+            const qrImg = document.getElementById('qrImage');
+            const instructionsDiv = document.getElementById('instructions');
+            const stepsList = document.getElementById('stepsList');
+
             try {
+                statusEl.innerHTML = '<span class="loader"></span><br>Generating QR Code...';
+                
                 const response = await fetch('/qr');
                 const data = await response.json();
 
                 if (data.qr) {
-                    const qrImg = document.getElementById('qrImage');
                     qrImg.src = data.qr;
-                    const instructions = document.getElementById('instructions');
-                    instructions.innerHTML = '';
-                    data.instructions.forEach(step => {
-                        const li = document.createElement('li');
-                        li.textContent = step;
-                        instructions.appendChild(li);
-                    });
-
-                    document.getElementById('status').textContent = data.message;
+                    qrImg.classList.add('loaded');
+                    
+                    statusEl.textContent = data.message || '✅ QR Code Ready!';
+                    statusEl.style.color = '#4caf50';
+                    statusEl.style.fontWeight = '600';
+                    
+                    if (data.instructions && Array.isArray(data.instructions)) {
+                        instructionsDiv.style.display = 'block';
+                        stepsList.innerHTML = '';
+                        data.instructions.forEach(step => {
+                            const li = document.createElement('li');
+                            li.textContent = step;
+                            stepsList.appendChild(li);
+                        });
+                    }
                 } else {
-                    document.getElementById('status').textContent = 'Failed to load QR code';
+                    throw new Error(data.code || 'Failed to load QR code');
                 }
             } catch (err) {
                 console.error(err);
-                document.getElementById('status').textContent = 'Error fetching QR code';
+                statusEl.innerHTML = `
+                    <div class="error-box">
+                        <strong>❌ Error</strong><br>
+                        ${err.message || 'Failed to generate QR code'}<br>
+                        <small>Please refresh the page and try again</small>
+                    </div>
+                `;
             }
         }
 
