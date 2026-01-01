@@ -2,53 +2,65 @@ import express from 'express';
 import fs from 'fs-extra';
 import pino from 'pino';
 import QRCode from 'qrcode';
-import { exec } from 'child_process';
-import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, Browsers, jidNormalizedUser, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
-import { delay } from '@whiskeysockets/baileys';
+import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, Browsers, jidNormalizedUser, fetchLatestBaileysVersion, delay } from '@whiskeysockets/baileys';
 import { upload } from './mega.js';
 
 const router = express.Router();
 
 const MESSAGE = `
-*SESSION GENERATED SUCCESSFULLY* ✅
+*✨ SESSION GENERATED SUCCESSFULLY ✨*
 
-*Gɪᴠᴇ ᴀ ꜱᴛᴀʀ ᴛᴏ ʀᴇᴘᴏ* 🌟
-https://github.com/GlobalTechInfo/MEGA-MD
+╔══════════════════════╗
+║  AMAZING SESSION     ║
+║  PAIRING SYSTEM      ║
+╚══════════════════════╝
 
-*SUPPORT GROUP* 💭
-https://t.me/GlobalTechInfo
-https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07
+🌟 *Star The Repository*
+https://github.com/NexusCoders-cyber/Amazing-Bot-
 
-*YOUTUBE TUTORIALS* 🪄 
-https://youtube.com/@GlobalTechInfo
+💬 *Support & Updates*
+Contact: +2347075663318
 
-*MEGA-MD--WHATSAPP-BOT* 🥀
+🎯 *Features*
+• Lightning Fast QR Scan
+• Secure MEGA Storage
+• Instant Session Delivery
+
+⚡ *Powered by NexusCoders*
 `;
 
 async function removeFile(filePath) {
     try {
-        if (!fs.existsSync(filePath)) return false;
-        await fs.remove(filePath);
-        return true;
+        if (fs.existsSync(filePath)) {
+            await fs.remove(filePath);
+            return true;
+        }
+        return false;
     } catch (e) {
-        console.error('Error removing file:', e);
+        console.error('Remove error:', e);
         return false;
     }
 }
 
 router.get('/', async (req, res) => {
-    const sessionId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
-    const dirs = `./qr_sessions/session_${sessionId}`;
-    if (!fs.existsSync('./qr_sessions')) await fs.mkdir('./qr_sessions', { recursive: true });
+    const sessionId = `qr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const dirs = `./qr_sessions/${sessionId}`;
+    
+    try {
+        await fs.ensureDir('./qr_sessions');
+        await fs.ensureDir(dirs);
+    } catch (err) {
+        console.error('Directory error:', err);
+        return res.status(500).send({ code: 'Failed to initialize session' });
+    }
 
     async function initiateSession() {
-        if (!fs.existsSync(dirs)) await fs.mkdir(dirs, { recursive: true });
         const { state, saveCreds } = await useMultiFileAuthState(dirs);
+        let responseSent = false;
+        let qrGenerated = false;
 
         try {
             const { version } = await fetchLatestBaileysVersion();
-            let qrGenerated = false;
-            let responseSent = false;
 
             let sock = makeWASocket({
                 version,
@@ -56,15 +68,12 @@ router.get('/', async (req, res) => {
                 browser: Browsers.windows('Chrome'),
                 auth: {
                     creds: state.creds,
-                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
+                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
                 },
                 markOnlineOnConnect: false,
-                generateHighQualityLinkPreview: false,
-                defaultQueryTimeoutMs: 60000,
-                connectTimeoutMs: 60000,
-                keepAliveIntervalMs: 30000,
-                retryRequestDelayMs: 250,
-                maxRetries: 5,
+                generateHighQualityLinkPreview: true,
+                syncFullHistory: false,
+                getMessage: async () => ({ conversation: 'Hi' })
             });
 
             const handleQRCode = async (qr) => {
@@ -72,88 +81,105 @@ router.get('/', async (req, res) => {
                 qrGenerated = true;
 
                 try {
-                    const qrDataURL = await QRCode.toDataURL(qr, { errorCorrectionLevel: 'M' });
+                    const qrDataURL = await QRCode.toDataURL(qr, { 
+                        errorCorrectionLevel: 'H',
+                        width: 300,
+                        margin: 2
+                    });
+                    
                     if (!responseSent) {
                         responseSent = true;
                         res.send({
                             qr: qrDataURL,
-                            message: 'QR Code Generated! Scan with WhatsApp app.',
+                            message: '🎯 QR Code Ready! Scan Now',
                             instructions: [
                                 '1. Open WhatsApp on your phone',
                                 '2. Go to Settings > Linked Devices',
                                 '3. Tap "Link a Device"',
-                                '4. Scan the QR code above'
+                                '4. Scan the QR code above',
+                                '5. Wait for session delivery'
                             ]
                         });
                     }
                 } catch (err) {
-                    console.error('Error generating QR code:', err);
-                    if (!responseSent) res.status(500).send({ code: 'Failed to generate QR code' });
+                    console.error('QR generation error:', err);
+                    if (!responseSent) {
+                        res.status(500).send({ code: 'QR generation failed' });
+                    }
                 }
             };
-
-            let reconnectAttempts = 0;
-            const maxReconnectAttempts = 3;
 
             sock.ev.on('connection.update', async (update) => {
                 const { connection, lastDisconnect, qr } = update;
 
-                if (qr && !qrGenerated) await handleQRCode(qr);
+                if (qr && !qrGenerated) {
+                    await handleQRCode(qr);
+                }
 
                 if (connection === 'open') {
+                    await delay(2000);
+                    
                     try {
-                        const credsFile = dirs + '/creds.json';
+                        const credsFile = `${dirs}/creds.json`;
+                        
                         if (fs.existsSync(credsFile)) {
-                            const megaUrl = await upload(fs.createReadStream(credsFile), `${Date.now()}.json`);
-                            console.log('📄 Session uploaded to MEGA:', megaUrl);
+                            const credsData = await fs.readFile(credsFile);
+                            const timestamp = Date.now();
+                            const megaUrl = await upload(credsData, `session_${timestamp}.json`);
+                            const sessionId = megaUrl.replace('https://mega.nz/file/', '');
 
-                            const userJid = Object.keys(sock.authState.creds.me || {}).length > 0
-                                ? jidNormalizedUser(sock.authState.creds.me.id)
-                                : null;
+                            console.log('✅ Session uploaded:', sessionId);
 
-                            if (userJid) {
-                                const msg = await sock.sendMessage(userJid, { text: `📄 Your session ID: ${megaUrl}` });
-                                await sock.sendMessage(userJid, { text: MESSAGE, quoted: msg });
-                            }
+                            const userJid = jidNormalizedUser(sock.user.id);
+                            
+                            await delay(1000);
+                            const msg = await sock.sendMessage(userJid, { 
+                                text: `🔐 *Your Session ID*\n\n\`\`\`${sessionId}\`\`\`\n\n_Keep this secure!_` 
+                            });
+                            
+                            await delay(500);
+                            await sock.sendMessage(userJid, { 
+                                text: MESSAGE, 
+                                quoted: msg 
+                            });
+
+                            await delay(3000);
+                            await sock.logout();
                         }
-                        setTimeout(() => removeFile(dirs), 10000);
+                        
+                        setTimeout(() => removeFile(dirs), 5000);
                     } catch (err) {
-                        console.error('Error sending session:', err);
+                        console.error('Session send error:', err);
                         await removeFile(dirs);
                     }
                 }
 
                 if (connection === 'close') {
                     const statusCode = lastDisconnect?.error?.output?.statusCode;
-                    if (statusCode === 401) removeFile(dirs);
-                    else if ([503, 515].includes(statusCode)) {
-                        reconnectAttempts++;
-                        if (reconnectAttempts <= maxReconnectAttempts) {
-                            setTimeout(() => {
-                                try {
-                                    sock = makeWASocket(sock.user);
-                                    sock.ev.on('connection.update', this);
-                                    sock.ev.on('creds.update', saveCreds);
-                                } catch (err) { console.error('Reconnect failed:', err); }
-                            }, 2000);
-                        } else {
-                            if (!responseSent) res.status(503).send({ code: 'Connection failed after retries' });
-                        }
+                    
+                    if (statusCode === 401 || statusCode === 403) {
+                        await removeFile(dirs);
+                    } else {
+                        await delay(2000);
+                        await removeFile(dirs);
                     }
                 }
             });
 
             sock.ev.on('creds.update', saveCreds);
 
-            setTimeout(() => {
-                if (!responseSent) res.status(408).send({ code: 'QR generation timeout' });
-                removeFile(dirs);
-            }, 30000);
+            setTimeout(async () => {
+                if (!responseSent) {
+                    res.status(408).send({ code: 'QR timeout - please try again' });
+                }
+                await removeFile(dirs);
+            }, 60000);
 
         } catch (err) {
-            console.error('Error initializing session:', err);
-            exec('pm2 restart qasim');
-            if (!res.headersSent) res.status(503).send({ code: 'Service Unavailable' });
+            console.error('Session initialization error:', err);
+            if (!res.headersSent) {
+                res.status(503).send({ code: 'Service unavailable' });
+            }
             await removeFile(dirs);
         }
     }
@@ -166,12 +192,11 @@ process.on('uncaughtException', (err) => {
     const ignore = [
         "conflict", "not-authorized", "Socket connection timeout",
         "rate-overlimit", "Connection Closed", "Timed Out",
-        "Value not found", "Stream Errored", "Stream Errored (restart required)",
-        "statusCode: 515", "statusCode: 503"
+        "Value not found", "Stream Errored", "ENOENT"
     ];
+    
     if (!ignore.some(x => e.includes(x))) {
-        console.log('Caught exception:', err);
-        exec('pm2 restart qasim');
+        console.log('Exception:', err.message);
     }
 });
 
