@@ -12,7 +12,7 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -20,90 +20,123 @@
             min-height: 100vh;
             padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 30px 30px;
+            animation: gridMove 20s linear infinite;
+            opacity: 0.3;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(30px, 30px); }
         }
 
         .container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 30px;
-            padding: 40px;
-            max-width: 500px;
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 35px;
+            padding: 45px 40px;
+            max-width: 550px;
             width: 100%;
             text-align: center;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: slideIn 0.5s ease-out;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35),
+                        0 15px 35px rgba(0, 0, 0, 0.25);
+            animation: slideIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            z-index: 1;
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         @keyframes slideIn {
             from {
                 opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(40px) scale(0.95);
             }
             to {
                 opacity: 1;
-                transform: translateY(0);
+                transform: translateY(0) scale(1);
             }
         }
 
         .icon {
-            font-size: 60px;
-            margin-bottom: 20px;
-            animation: pulse 2s ease-in-out infinite;
+            font-size: 75px;
+            margin-bottom: 25px;
+            animation: pulse 2.5s ease-in-out infinite;
+            filter: drop-shadow(0 5px 15px rgba(102, 126, 234, 0.3));
         }
 
         @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.9; }
         }
 
         h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 2rem;
-            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
         }
 
         .status {
-            color: #666;
-            font-size: 1rem;
-            margin-bottom: 30px;
-            min-height: 24px;
+            color: #718096;
+            font-size: 1.05rem;
+            margin-bottom: 35px;
+            min-height: 28px;
+            font-weight: 600;
         }
 
         .qr-wrapper {
             background: white;
-            padding: 20px;
-            border-radius: 20px;
+            padding: 25px;
+            border-radius: 25px;
             display: inline-block;
-            margin: 20px 0;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            animation: fadeIn 0.5s ease-in;
+            margin: 25px 0;
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.15);
+            animation: fadeIn 0.6s ease-in;
+            border: 2px solid #f7fafc;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
         }
 
         #qrImage {
-            max-width: 300px;
+            max-width: 320px;
             width: 100%;
             height: auto;
-            border-radius: 15px;
+            border-radius: 20px;
             display: none;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
         }
 
         #qrImage.loaded {
             display: block;
+            animation: qrPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes qrPop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
         }
 
         .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border: 4.5px solid #e2e8f0;
+            border-top: 4.5px solid #667eea;
             border-radius: 50%;
-            width: 60px;
-            height: 60px;
+            width: 70px;
+            height: 70px;
             animation: spin 1s linear infinite;
-            margin: 40px auto;
+            margin: 45px auto;
         }
 
         @keyframes spin {
@@ -113,69 +146,101 @@
 
         .instructions {
             text-align: left;
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-            border-radius: 15px;
-            padding: 20px;
-            margin-top: 25px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+            border-radius: 20px;
+            padding: 25px;
+            margin-top: 30px;
+            border: 2px solid rgba(102, 126, 234, 0.15);
         }
 
         .instructions h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.1rem;
+            color: #2d3748;
+            margin-bottom: 18px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .instructions ol {
-            padding-left: 20px;
-            color: #555;
-            line-height: 1.8;
+            padding-left: 22px;
+            color: #4a5568;
+            line-height: 2;
+            font-weight: 500;
         }
 
         .instructions li {
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .instructions li::marker {
+            color: #667eea;
+            font-weight: 700;
         }
 
         .back-btn {
             display: inline-block;
-            margin-top: 25px;
-            padding: 12px 30px;
+            margin-top: 30px;
+            padding: 16px 36px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             text-decoration: none;
-            border-radius: 25px;
-            font-weight: 600;
-            transition: all 0.3s ease;
+            border-radius: 20px;
+            font-weight: 700;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.95rem;
         }
 
         .back-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(102, 126, 234, 0.4);
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+
+        .back-btn:active {
+            transform: translateY(-1px);
         }
 
         .error-box {
-            background: #fee;
-            border: 2px solid #f88;
-            border-radius: 15px;
-            padding: 20px;
-            color: #c33;
-            margin: 20px 0;
+            background: linear-gradient(135deg, rgba(252, 129, 129, 0.12) 0%, rgba(245, 101, 101, 0.12) 100%);
+            border: 2.5px solid #fc8181;
+            border-radius: 20px;
+            padding: 25px;
+            color: #c53030;
+            margin: 25px 0;
+            font-weight: 600;
+            line-height: 1.8;
+        }
+
+        .error-box strong {
+            display: block;
+            font-size: 1.1rem;
+            margin-bottom: 8px;
         }
 
         @media (max-width: 600px) {
             .container {
-                padding: 30px 20px;
+                padding: 35px 28px;
             }
 
             h1 {
-                font-size: 1.5rem;
+                font-size: 1.8rem;
             }
 
             #qrImage {
-                max-width: 250px;
+                max-width: 270px;
             }
 
             .icon {
-                font-size: 50px;
+                font-size: 60px;
+            }
+
+            .instructions {
+                padding: 20px;
             }
         }
     </style>
@@ -193,7 +258,7 @@
         </div>
 
         <div class="instructions" id="instructions" style="display: none;">
-            <h3>📋 How to Scan:</h3>
+            <h3>📋 How to Scan</h3>
             <ol id="stepsList"></ol>
         </div>
 
@@ -218,8 +283,8 @@
                     qrImg.classList.add('loaded');
                     
                     statusEl.textContent = data.message || '✅ QR Code Ready!';
-                    statusEl.style.color = '#4caf50';
-                    statusEl.style.fontWeight = '600';
+                    statusEl.style.color = '#48bb78';
+                    statusEl.style.fontWeight = '700';
                     
                     if (data.instructions && Array.isArray(data.instructions)) {
                         instructionsDiv.style.display = 'block';
@@ -237,7 +302,7 @@
                 console.error(err);
                 statusEl.innerHTML = `
                     <div class="error-box">
-                        <strong>❌ Error</strong><br>
+                        <strong>❌ Error</strong>
                         ${err.message || 'Failed to generate QR code'}<br>
                         <small>Please refresh the page and try again</small>
                     </div>
