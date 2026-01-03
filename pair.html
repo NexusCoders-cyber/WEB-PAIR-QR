@@ -17,170 +17,211 @@
       align-items: center;
       min-height: 100vh;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: absolute;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+      background-size: 30px 30px;
+      animation: gridMove 20s linear infinite;
+      opacity: 0.3;
+    }
+
+    @keyframes gridMove {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(30px, 30px); }
     }
 
     .container {
       width: 100%;
-      max-width: 450px;
+      max-width: 480px;
+      position: relative;
+      z-index: 1;
     }
 
     .card {
-      background: rgba(255, 255, 255, 0.95);
-      border-radius: 30px;
-      padding: 40px 35px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(10px);
-      animation: cardSlideIn 0.5s ease-out;
+      background: rgba(255, 255, 255, 0.97);
+      border-radius: 35px;
+      padding: 45px 40px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35),
+                  0 15px 35px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(15px);
+      animation: cardSlideIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid rgba(255, 255, 255, 0.3);
     }
 
     @keyframes cardSlideIn {
       from {
         opacity: 0;
-        transform: translateY(30px);
+        transform: translateY(40px) scale(0.95);
       }
       to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
       }
     }
 
     .header {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 35px;
     }
 
     .icon {
-      font-size: 60px;
-      margin-bottom: 15px;
-      animation: iconBounce 2s ease-in-out infinite;
+      font-size: 70px;
+      margin-bottom: 20px;
+      animation: iconBounce 2.5s ease-in-out infinite;
+      filter: drop-shadow(0 5px 15px rgba(102, 126, 234, 0.3));
     }
 
     @keyframes iconBounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-12px) scale(1.05); }
     }
 
     h1 {
-      color: #333;
-      font-size: 1.8rem;
-      margin-bottom: 10px;
-      font-weight: 700;
+      color: #2d3748;
+      font-size: 2rem;
+      margin-bottom: 12px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
     }
 
     .subtitle {
-      color: #666;
-      font-size: 0.95rem;
-      line-height: 1.5;
+      color: #718096;
+      font-size: 1rem;
+      line-height: 1.6;
+      font-weight: 500;
     }
 
     .input-group {
-      margin-bottom: 25px;
+      margin-bottom: 28px;
     }
 
     .input-label {
       display: block;
-      color: #555;
-      font-size: 0.9rem;
-      font-weight: 600;
-      margin-bottom: 10px;
+      color: #4a5568;
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 12px;
       padding-left: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .input-wrapper {
       position: relative;
       display: flex;
-      gap: 10px;
+      gap: 12px;
     }
 
     .input-field {
       flex: 1;
-      padding: 15px 20px;
-      border: 2px solid #e0e0e0;
-      border-radius: 15px;
-      font-size: 1rem;
-      transition: all 0.3s ease;
-      background: #f8f9fa;
+      padding: 18px 22px;
+      border: 2.5px solid #e2e8f0;
+      border-radius: 18px;
+      font-size: 1.05rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: #f7fafc;
+      font-weight: 600;
+      color: #2d3748;
     }
 
     .input-field:focus {
       outline: none;
       border-color: #667eea;
       background: white;
-      box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+      box-shadow: 0 0 0 5px rgba(102, 126, 234, 0.12),
+                  0 5px 15px rgba(102, 126, 234, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .input-field::placeholder {
+      color: #a0aec0;
     }
 
     .btn {
-      padding: 15px 30px;
+      padding: 18px 32px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       border: none;
-      border-radius: 15px;
-      font-size: 1rem;
-      font-weight: 600;
+      border-radius: 18px;
+      font-size: 1.05rem;
+      font-weight: 700;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
       white-space: nowrap;
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
     }
 
     .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 30px rgba(102, 126, 234, 0.4);
+      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
     }
 
     .btn:active {
-      transform: translateY(0);
+      transform: translateY(-1px);
     }
 
     .btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+      transform: none;
     }
 
     .result-area {
-      margin-top: 25px;
-      min-height: 60px;
+      margin-top: 28px;
+      min-height: 70px;
     }
 
     .result-box {
-      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-      border: 2px dashed #667eea;
-      border-radius: 15px;
-      padding: 20px;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+      border: 2.5px dashed #667eea;
+      border-radius: 20px;
+      padding: 25px;
       text-align: center;
-      animation: fadeIn 0.3s ease-in;
+      animation: fadeIn 0.4s ease-in;
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; transform: scale(0.9); }
+      from { opacity: 0; transform: scale(0.92); }
       to { opacity: 1; transform: scale(1); }
     }
 
     .result-text {
-      color: #333;
-      font-size: 0.95rem;
-      margin-bottom: 15px;
+      color: #2d3748;
+      font-size: 1rem;
+      margin-bottom: 18px;
+      font-weight: 600;
     }
 
     .code-display {
       background: white;
-      border-radius: 12px;
-      padding: 15px;
-      font-size: 2rem;
-      font-weight: 700;
+      border-radius: 15px;
+      padding: 20px;
+      font-size: 2.2rem;
+      font-weight: 800;
       color: #667eea;
-      letter-spacing: 3px;
+      letter-spacing: 4px;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       user-select: none;
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.15);
     }
 
     .code-display:hover {
-      background: #f8f9fa;
-      transform: scale(1.05);
+      background: #f7fafc;
+      transform: scale(1.06);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.25);
     }
 
     .code-display:active {
@@ -189,13 +230,14 @@
 
     .loading {
       display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #667eea;
+      width: 22px;
+      height: 22px;
+      border: 3.5px solid #e2e8f0;
+      border-top: 3.5px solid #667eea;
       border-radius: 50%;
       animation: spin 1s linear infinite;
-      margin-right: 10px;
+      margin-right: 12px;
+      vertical-align: middle;
     }
 
     @keyframes spin {
@@ -206,30 +248,34 @@
     .back-btn {
       display: block;
       text-align: center;
-      margin-top: 20px;
-      color: #666;
+      margin-top: 25px;
+      color: #718096;
       text-decoration: none;
-      font-size: 0.9rem;
-      transition: color 0.3s ease;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      padding: 10px;
+      border-radius: 10px;
     }
 
     .back-btn:hover {
       color: #667eea;
+      background: rgba(102, 126, 234, 0.08);
     }
 
     .error {
-      background: #fee;
-      border-color: #f88;
-      color: #c33;
+      background: linear-gradient(135deg, rgba(252, 129, 129, 0.12) 0%, rgba(245, 101, 101, 0.12) 100%);
+      border-color: #fc8181;
+      color: #c53030;
     }
 
     @media (max-width: 600px) {
       .card {
-        padding: 30px 25px;
+        padding: 35px 28px;
       }
 
       h1 {
-        font-size: 1.5rem;
+        font-size: 1.7rem;
       }
 
       .input-wrapper {
@@ -241,7 +287,7 @@
       }
 
       .code-display {
-        font-size: 1.5rem;
+        font-size: 1.8rem;
       }
     }
   </style>
@@ -256,7 +302,7 @@
       </div>
 
       <div class="input-group">
-        <label class="input-label">Phone Number (with country code)</label>
+        <label class="input-label">Phone Number</label>
         <div class="input-wrapper">
           <input 
             type="tel" 
@@ -282,12 +328,12 @@
     const numberInput = document.getElementById("number");
 
     async function copyCode(element) {
-      const code = element.innerText.replace('CODE: ', '').trim();
+      const code = element.innerText.trim();
       try {
         await navigator.clipboard.writeText(code);
         const original = element.innerHTML;
         element.innerHTML = '✓ COPIED!';
-        element.style.color = '#4caf50';
+        element.style.color = '#48bb78';
         setTimeout(() => {
           element.innerHTML = original;
           element.style.color = '#667eea';
@@ -316,7 +362,7 @@
       if (cleanNum.length < 10) {
         resultDiv.innerHTML = `
           <div class="result-box error">
-            <div class="result-text">⚠️ Invalid number format. Include country code.</div>
+            <div class="result-text">⚠️ Invalid number. Include country code.</div>
           </div>
         `;
         return;
@@ -338,11 +384,11 @@
         const { data } = await axios.get(`/code?number=${cleanNum}`);
         const code = data.code || "Service Unavailable";
         
-        if (code === "Service Unavailable" || code.includes("Failed") || code.includes("Invalid")) {
+        if (code === "Service Unavailable" || code.includes("Failed") || code.includes("Invalid") || code.includes("Wait")) {
           resultDiv.innerHTML = `
             <div class="result-box error">
               <div class="result-text">❌ ${code}</div>
-              <div class="result-text" style="font-size: 0.85rem; margin-top: 10px;">
+              <div class="result-text" style="font-size: 0.9rem; margin-top: 12px; opacity: 0.8;">
                 Please check your number and try again
               </div>
             </div>
@@ -350,12 +396,12 @@
         } else {
           resultDiv.innerHTML = `
             <div class="result-box">
-              <div class="result-text">🎉 Your Pairing Code:</div>
+              <div class="result-text">🎉 Your Pairing Code</div>
               <div class="code-display" onclick="copyCode(this)">
                 ${code}
               </div>
-              <div class="result-text" style="font-size: 0.85rem; margin-top: 15px;">
-                Click code to copy • Session will be sent to your WhatsApp
+              <div class="result-text" style="font-size: 0.9rem; margin-top: 18px; opacity: 0.8;">
+                Click code to copy • Session will be sent to WhatsApp
               </div>
             </div>
           `;
@@ -364,7 +410,7 @@
         resultDiv.innerHTML = `
           <div class="result-box error">
             <div class="result-text">❌ Connection Error</div>
-            <div class="result-text" style="font-size: 0.85rem; margin-top: 10px;">
+            <div class="result-text" style="font-size: 0.9rem; margin-top: 12px; opacity: 0.8;">
               ${error.message || 'Please try again later'}
             </div>
           </div>
@@ -378,6 +424,10 @@
       if (e.key === 'Enter') {
         submitBtn.click();
       }
+    });
+
+    numberInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^0-9+]/g, '');
     });
   </script>
 </body>
