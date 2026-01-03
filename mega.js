@@ -2,7 +2,7 @@ import { Storage } from 'megajs';
 
 const auth = {
     email: process.env.MEGA_EMAIL || 'ilomraphael@gmail.com',
-    password: process.env.MEGA_PASSWORD || 'Isaiahilom@123',
+    password: process.env.MEGA_PASSWORD || 'Isaiahilom@1234',
     userAgent: 'AmazingSessionPairing/2.0'
 };
 
