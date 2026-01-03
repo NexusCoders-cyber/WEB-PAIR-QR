@@ -104,12 +104,16 @@ router.get('/', async (req, res) => {
     activeSessions.set(num, { sessionId, timestamp: Date.now() });
 
     let codeSent = false;
-    let isConnected = false;
-    let reconnectAttempts = 0;
+    let sessionState = {
+        isConnected: false,
+        credsSaved: false,
+        sessionDelivered: false
+    };
 
     async function runSession() {
         let sock;
         let sessionTimeout;
+        let connectionTimeout;
 
         try {
             const { state, saveCreds } = await useMultiFileAuthState(dirs);
@@ -124,51 +128,82 @@ router.get('/', async (req, res) => {
                 printQRInTerminal: false,
                 logger: pino({ level: "silent" }),
                 browser: Browsers.ubuntu('Chrome'),
-                connectTimeoutMs: 120000,
+                connectTimeoutMs: 60000,
                 defaultQueryTimeoutMs: 0,
-                keepAliveIntervalMs: 30000,
-                retryRequestDelayMs: 500,
-                markOnlineOnConnect: false,
-                syncFullHistory: false,
-                fireInitQueries: true,
-                generateHighQualityLinkPreview: true,
-                shouldIgnoreJid: () => false,
+                keepAliveIntervalMs: 10000,
+                emitOwnEvents: false,
                 getMessage: async () => undefined
             });
 
-            sock.ev.on('creds.update', saveCreds);
+            if (!sock.authState.creds.registered) {
+                await delay(1500);
+                
+                try {
+                    const pairingCode = await sock.requestPairingCode(num);
+                    const code = pairingCode?.match(/.{1,4}/g)?.join('-') || pairingCode;
+                    
+                    if (!codeSent && !res.headersSent) {
+                        codeSent = true;
+                        res.json({ code });
+                        console.log(`📱 ${num} - Code sent: ${code}`);
+
+                        connectionTimeout = setTimeout(() => {
+                            if (!sessionState.isConnected) {
+                                console.log(`⏱️ ${num} - Connection timeout`);
+                                if (sock?.end) sock.end(undefined);
+                                setTimeout(() => {
+                                    removeFile(dirs);
+                                    activeSessions.delete(num);
+                                }, 3000);
+                            }
+                        }, 300000);
+                    }
+                } catch (err) {
+                    console.error(`❌ ${num} - Code error:`, err.message);
+                    if (!res.headersSent) {
+                        res.status(503).json({ code: 'Failed to generate code' });
+                    }
+                    await removeFile(dirs);
+                    activeSessions.delete(num);
+                    return;
+                }
+            }
+
+            sock.ev.on('creds.update', async () => {
+                await saveCreds();
+                sessionState.credsSaved = true;
+            });
 
             sock.ev.on('connection.update', async (update) => {
-                const { connection, lastDisconnect, isNewLogin, qr } = update;
+                const { connection, lastDisconnect } = update;
 
                 if (connection === 'connecting') {
                     console.log(`🔄 ${num} - Connecting...`);
                 }
 
                 if (connection === 'open') {
-                    isConnected = true;
-                    reconnectAttempts = 0;
-                    console.log(`✅ ${num} - Connected!`);
-                    clearTimeout(sessionTimeout);
+                    sessionState.isConnected = true;
+                    clearTimeout(connectionTimeout);
+                    console.log(`✅ ${num} - Connected successfully!`);
                     
-                    await delay(8000);
+                    await delay(5000);
                     
                     const credsFile = `${dirs}/creds.json`;
                     
-                    if (fs.existsSync(credsFile)) {
+                    if (fs.existsSync(credsFile) && !sessionState.sessionDelivered) {
                         try {
-                            console.log(`📤 ${num} - Uploading session...`);
+                            console.log(`📤 ${num} - Processing session...`);
                             
                             const id = randomMegaId();
                             const credsData = await fs.readFile(credsFile);
                             const megaLink = await megaUpload(credsData, `${id}.json`);
                             const sessionCode = megaLink.replace('https://mega.nz/file/', '');
 
-                            console.log(`✅ ${num} - Session uploaded: ${sessionCode}`);
+                            console.log(`✅ ${num} - Session uploaded successfully`);
 
                             const userJid = jidNormalizedUser(sock.user.id);
                             
-                            await delay(3000);
+                            await delay(2000);
                             const m1 = await sock.sendMessage(userJid, { 
                                 text: `🔐 *Your Session ID*\n\n\`\`\`${sessionCode}\`\`\`\n\n_Keep this secure!_` 
                             });
@@ -179,42 +214,40 @@ router.get('/', async (req, res) => {
                                 quoted: m1 
                             });
 
-                            console.log(`✅ ${num} - Session sent to WhatsApp!`);
+                            sessionState.sessionDelivered = true;
+                            console.log(`✅ ${num} - Session delivered to WhatsApp`);
                             
-                            await delay(3000);
+                            await delay(5000);
                             
+                        } catch (err) {
+                            console.error(`❌ ${num} - Delivery error:`, err.message);
+                        } finally {
                             if (sock?.end) {
                                 sock.end(undefined);
                             }
-                        } catch (err) {
-                            console.error(`❌ ${num} - Upload error:`, err.message);
+                            
+                            setTimeout(async () => {
+                                await removeFile(dirs);
+                                activeSessions.delete(num);
+                                console.log(`🧹 ${num} - Cleanup completed`);
+                            }, 10000);
                         }
-                    } else {
-                        console.error(`❌ ${num} - Creds file not found`);
                     }
-                    
-                    setTimeout(async () => {
-                        await removeFile(dirs);
-                        activeSessions.delete(num);
-                    }, 15000);
                 }
 
                 if (connection === 'close') {
+                    clearTimeout(connectionTimeout);
                     const statusCode = lastDisconnect?.error?.output?.statusCode;
+                    const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                     
-                    console.log(`❌ ${num} - Closed: ${statusCode}`);
+                    console.log(`❌ ${num} - Connection closed: ${statusCode}`);
                     
-                    if (statusCode === DisconnectReason.connectionReplaced || statusCode === DisconnectReason.multideviceMismatch) {
-                        console.log(`🔄 ${num} - Reconnecting...`);
-                        if (reconnectAttempts < 3 && !isConnected) {
-                            reconnectAttempts++;
-                            await delay(2000);
-                            await runSession();
-                            return;
-                        }
+                    if (!sessionState.isConnected && shouldReconnect && statusCode !== DisconnectReason.badSession) {
+                        console.log(`🔄 ${num} - Attempting reconnect...`);
+                        await delay(3000);
+                        await runSession();
+                        return;
                     }
-                    
-                    clearTimeout(sessionTimeout);
                     
                     setTimeout(async () => {
                         await removeFile(dirs);
@@ -223,42 +256,9 @@ router.get('/', async (req, res) => {
                 }
             });
 
-            if (!sock.authState.creds.registered) {
-                await delay(2000);
-                
-                try {
-                    const pairingCode = await sock.requestPairingCode(num);
-                    const code = pairingCode?.match(/.{1,4}/g)?.join('-') || pairingCode;
-                    
-                    if (!codeSent && !res.headersSent) {
-                        codeSent = true;
-                        res.json({ code });
-                        console.log(`📱 ${num} - Code: ${code}`);
-                    }
-
-                    sessionTimeout = setTimeout(async () => {
-                        if (!isConnected) {
-                            console.log(`⏱️ ${num} - Timeout (code not used)`);
-                            if (sock?.end) {
-                                sock.end(undefined);
-                            }
-                            await removeFile(dirs);
-                            activeSessions.delete(num);
-                        }
-                    }, 180000);
-
-                } catch (err) {
-                    console.error(`❌ ${num} - Code error:`, err.message);
-                    if (!res.headersSent) {
-                        res.status(503).json({ code: 'Failed to generate code' });
-                    }
-                    await removeFile(dirs);
-                    activeSessions.delete(num);
-                }
-            }
-
         } catch (err) {
             console.error(`❌ ${num} - Session error:`, err.message);
+            clearTimeout(connectionTimeout);
             await removeFile(dirs);
             activeSessions.delete(num);
             if (!res.headersSent) {
@@ -271,7 +271,7 @@ router.get('/', async (req, res) => {
 });
 
 process.on('uncaughtException', err => {
-    const ignore = ['ENOENT', 'ECONNRESET', 'conflict', 'not-authorized', 'Stream Errored', 'Connection Closed'];
+    const ignore = ['ENOENT', 'ECONNRESET', 'conflict', 'not-authorized', 'Stream Errored', 'Connection Closed', 'Timed Out'];
     if (!ignore.some(x => String(err).includes(x))) {
         console.log('Exception:', err.message);
     }
