@@ -9,7 +9,6 @@ const auth = {
 export const testMegaConnection = async () => {
     try {
         console.log('🔍 Testing MEGA connection...');
-        console.log('📧 Email:', auth.email);
         
         const storage = await new Storage({
             email: auth.email,
@@ -34,7 +33,7 @@ export const testMegaConnection = async () => {
         } else if (err.message.includes('ETOOMANY')) {
             console.error('⚠️  Too many login attempts. Wait and try again.');
         } else if (err.message.includes('2FA')) {
-            console.error('⚠️  Two-factor authentication is enabled. Disable it or provide code.');
+            console.error('⚠️  Two-factor authentication is enabled.');
         }
         
         return false;
@@ -44,10 +43,12 @@ export const testMegaConnection = async () => {
 export const upload = async (data, name) => {
     const maxRetries = 3;
     let attempt = 0;
+    let lastError;
 
     while (attempt < maxRetries) {
+        attempt++;
         try {
-            console.log(`📤 Upload attempt ${attempt + 1}/${maxRetries} for ${name}`);
+            console.log(`📤 Upload attempt ${attempt}/${maxRetries} for ${name}`);
 
             if (!auth.email || !auth.password || auth.email === 'your-mega-email@example.com') {
                 throw new Error("MEGA credentials not configured");
@@ -84,15 +85,14 @@ export const upload = async (data, name) => {
             console.log('✅ File uploaded successfully');
 
             const url = await file.link();
-
-            console.log('✅ Share link generated:', url);
+            console.log('✅ Share link generated');
 
             await storage.close();
 
             return url;
 
         } catch (err) {
-            attempt++;
+            lastError = err;
             console.error(`❌ Upload attempt ${attempt} failed:`, err.message);
 
             if (err.message.includes('EARGS')) {
@@ -103,19 +103,13 @@ export const upload = async (data, name) => {
                 throw new Error('Too many requests to MEGA. Wait 5 minutes.');
             }
 
-            if (err.message.includes('ESID')) {
-                console.log('🔄 Session expired, retrying...');
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                continue;
+            if (attempt < maxRetries) {
+                const waitTime = 2000 * attempt;
+                console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
             }
-
-            if (attempt >= maxRetries) {
-                throw new Error(`Failed after ${maxRetries} attempts: ${err.message}`);
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
         }
     }
 
-    throw new Error('Upload failed after all retries');
+    throw new Error(`Upload failed after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
 };
