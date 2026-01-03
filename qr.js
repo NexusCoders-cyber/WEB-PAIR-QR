@@ -37,7 +37,6 @@ async function removeFile(filePath) {
         }
         return false;
     } catch (e) {
-        console.error('Remove error:', e);
         return false;
     }
 }
@@ -55,11 +54,15 @@ router.get('/', async (req, res) => {
     }
 
     let responseSent = false;
-    let qrGenerated = false;
-    let sessionTimeout;
+    let sessionState = {
+        qrGenerated: false,
+        isConnected: false,
+        sessionDelivered: false
+    };
 
     async function initiateSession() {
         const { state, saveCreds } = await useMultiFileAuthState(dirs);
+        let connectionTimeout;
 
         try {
             const { version } = await fetchLatestBaileysVersion();
@@ -70,17 +73,18 @@ router.get('/', async (req, res) => {
                 browser: Browsers.windows('Chrome'),
                 auth: {
                     creds: state.creds,
-                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
+                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
                 },
-                markOnlineOnConnect: false,
-                generateHighQualityLinkPreview: true,
-                syncFullHistory: false,
-                getMessage: async () => ({ conversation: 'Hi' })
+                connectTimeoutMs: 60000,
+                defaultQueryTimeoutMs: 0,
+                keepAliveIntervalMs: 10000,
+                emitOwnEvents: false,
+                getMessage: async () => undefined
             });
 
             const handleQRCode = async (qr) => {
-                if (qrGenerated || responseSent) return;
-                qrGenerated = true;
+                if (sessionState.qrGenerated || responseSent) return;
+                sessionState.qrGenerated = true;
 
                 try {
                     const qrDataURL = await QRCode.toDataURL(qr, { 
@@ -95,14 +99,22 @@ router.get('/', async (req, res) => {
                             qr: qrDataURL,
                             message: '🎯 QR Code Ready! Scan Now',
                             instructions: [
-                                '1. Open WhatsApp on your phone',
-                                '2. Go to Settings > Linked Devices',
-                                '3. Tap "Link a Device"',
-                                '4. Scan the QR code above',
-                                '5. Wait for session delivery'
+                                'Open WhatsApp on your phone',
+                                'Go to Settings > Linked Devices',
+                                'Tap "Link a Device"',
+                                'Scan the QR code above',
+                                'Wait for session delivery'
                             ]
                         });
-                        console.log('✅ QR Code generated');
+                        console.log('✅ QR Code generated and sent');
+
+                        connectionTimeout = setTimeout(() => {
+                            if (!sessionState.isConnected) {
+                                console.log('⏱️ QR scan timeout');
+                                if (sock?.end) sock.end(undefined);
+                                setTimeout(() => removeFile(dirs), 3000);
+                            }
+                        }, 300000);
                     }
                 } catch (err) {
                     console.error('QR generation error:', err);
@@ -112,81 +124,94 @@ router.get('/', async (req, res) => {
                 }
             };
 
+            sock.ev.on('creds.update', saveCreds);
+
             sock.ev.on('connection.update', async (update) => {
                 const { connection, lastDisconnect, qr } = update;
 
-                if (qr && !qrGenerated) {
+                if (qr && !sessionState.qrGenerated) {
                     await handleQRCode(qr);
                 }
 
+                if (connection === 'connecting') {
+                    console.log('🔄 QR - Connecting...');
+                }
+
                 if (connection === 'open') {
-                    clearTimeout(sessionTimeout);
-                    await delay(3000);
+                    sessionState.isConnected = true;
+                    clearTimeout(connectionTimeout);
+                    console.log('✅ QR - Connected successfully!');
                     
-                    try {
-                        const credsFile = `${dirs}/creds.json`;
-                        
-                        if (fs.existsSync(credsFile)) {
-                            const credsData = await fs.readFile(credsFile);
-                            const timestamp = Date.now();
-                            const megaUrl = await upload(credsData, `session_${timestamp}.json`);
-                            const sessionCode = megaUrl.replace('https://mega.nz/file/', '');
-
-                            console.log('✅ Session uploaded:', sessionCode);
-
-                            const userJid = jidNormalizedUser(sock.user.id);
+                    await delay(5000);
+                    
+                    if (!sessionState.sessionDelivered) {
+                        try {
+                            const credsFile = `${dirs}/creds.json`;
                             
-                            await delay(2000);
-                            const msg = await sock.sendMessage(userJid, { 
-                                text: `🔐 *Your Session ID*\n\n\`\`\`${sessionCode}\`\`\`\n\n_Keep this secure!_` 
-                            });
-                            
-                            await delay(1000);
-                            await sock.sendMessage(userJid, { 
-                                text: MESSAGE, 
-                                quoted: msg 
-                            });
+                            if (fs.existsSync(credsFile)) {
+                                console.log('📤 QR - Processing session...');
+                                
+                                const credsData = await fs.readFile(credsFile);
+                                const timestamp = Date.now();
+                                const megaUrl = await upload(credsData, `session_${timestamp}.json`);
+                                const sessionCode = megaUrl.replace('https://mega.nz/file/', '');
 
-                            await delay(3000);
-                            
-                            if (sock && sock.end) {
-                                sock.end({ reason: 'Session delivered' });
+                                console.log('✅ QR - Session uploaded successfully');
+
+                                const userJid = jidNormalizedUser(sock.user.id);
+                                
+                                await delay(2000);
+                                const msg = await sock.sendMessage(userJid, { 
+                                    text: `🔐 *Your Session ID*\n\n\`\`\`${sessionCode}\`\`\`\n\n_Keep this secure!_` 
+                                });
+                                
+                                await delay(2000);
+                                await sock.sendMessage(userJid, { 
+                                    text: MESSAGE, 
+                                    quoted: msg 
+                                });
+
+                                sessionState.sessionDelivered = true;
+                                console.log('✅ QR - Session delivered to WhatsApp');
+                                
+                                await delay(5000);
                             }
+                        } catch (err) {
+                            console.error('❌ QR - Delivery error:', err.message);
+                        } finally {
+                            if (sock?.end) {
+                                sock.end(undefined);
+                            }
+                            
+                            setTimeout(async () => {
+                                await removeFile(dirs);
+                                console.log('🧹 QR - Cleanup completed');
+                            }, 10000);
                         }
-                        
-                        setTimeout(() => removeFile(dirs), 10000);
-                    } catch (err) {
-                        console.error('Session send error:', err);
-                        await removeFile(dirs);
                     }
                 }
 
                 if (connection === 'close') {
+                    clearTimeout(connectionTimeout);
                     const statusCode = lastDisconnect?.error?.output?.statusCode;
-                    const reason = lastDisconnect?.error?.output?.payload?.error;
+                    const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                     
-                    console.log(`Connection closed: ${statusCode} - ${reason || 'unknown'}`);
+                    console.log(`❌ QR - Connection closed: ${statusCode}`);
                     
-                    setTimeout(async () => {
-                        await removeFile(dirs);
-                    }, 5000);
+                    if (!sessionState.isConnected && shouldReconnect && statusCode !== DisconnectReason.badSession) {
+                        console.log('🔄 QR - Attempting reconnect...');
+                        await delay(3000);
+                        await initiateSession();
+                        return;
+                    }
+                    
+                    setTimeout(() => removeFile(dirs), 5000);
                 }
             });
 
-            sock.ev.on('creds.update', saveCreds);
-
-            sessionTimeout = setTimeout(async () => {
-                if (!responseSent) {
-                    res.status(408).json({ code: 'QR timeout - please try again' });
-                }
-                if (sock && sock.end) {
-                    sock.end({ reason: 'Timeout' });
-                }
-                await removeFile(dirs);
-            }, 120000);
-
         } catch (err) {
-            console.error('Session initialization error:', err);
+            console.error('❌ QR - Session error:', err.message);
+            clearTimeout(connectionTimeout);
             if (!res.headersSent) {
                 res.status(503).json({ code: 'Service unavailable' });
             }
